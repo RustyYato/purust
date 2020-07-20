@@ -22,6 +22,10 @@ struct EnumVariant {
     generics: Vec<syn::Type>,
 }
 
+struct Signature {
+    
+}
+
 struct Function {
 
 }
@@ -70,5 +74,45 @@ impl syn::visit::Visit<'_> for Items {
         }
 
         self.items.push(Item::Enum(variants));
+    }
+
+    fn visit_item_fn(&mut self, item: &syn::ItemFn) {
+        if !self.errors.is_empty() {
+            return
+        }
+
+        let vis = &item.vis;
+        let sig = &item.sig;
+        let block = &*item.block;
+        let ident = &sig.ident;
+        let unsafety = &sig.unsafety;
+        let ret = &sig.output;
+
+        let mut errors = quote!();
+        
+        if sig.constness.is_some() {
+            errors = quote!(#errors compile_error!("type functions cannot be marked `const`"););
+        }
+        
+        if sig.asyncness.is_some() {
+            errors = quote!(#errors compile_error!("type functions cannot be marked `async`"););
+        }
+
+        if sig.abi.is_some() {
+            errors = quote!(#errors compile_error!("type functions cannot have a custom abi"););
+        }
+
+        if sig.variadic.is_some() {
+            errors = quote!(#errors compile_error!("type functions cannot be variadic"););
+        }
+
+        if !sig.generics.params.is_empty() && sig.generics.params.len() != sig.generics.lifetimes().count() {
+            errors = quote!(#errors compile_error!("type functions may only be generic over lifetimes"););
+        }
+
+        if !errors.is_empty() {
+            self.errors = errors;
+            return;
+        }
     }
 }
